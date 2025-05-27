@@ -1,0 +1,51 @@
+variable T index 300 400 500 600 700 800 900 1000
+label T_loop
+
+units           metal
+atom_style      atomic
+boundary        p p p
+
+# Read structure and define atomic masses
+read_data       lammps.data
+mass            1 6.941   # Li
+mass            2 35.45   # Cl
+mass            3 16.00   # O
+mass            4 79.904  # Br
+
+# DeepMD potential model
+pair_style      deepmd ../AP-compress.pb
+pair_coeff      * *
+
+# Reset timestep
+reset_timestep  0
+
+# Initialize velocities (Gaussian distribution, random seed)
+velocity        all create ${T} 12345 mom yes rot no dist gaussian
+
+# NPT ensemble relaxation
+fix             1 all npt temp ${T} ${T} 0.1 iso 0.0 0.0 1.0
+
+# Thermodynamic output every 100 steps
+thermo_style    custom step temp press vol lx ly lz
+thermo          100
+
+# Output average temperature, volume, and cell dimensions
+compute         myTemp all temp
+variable        V equal vol
+variable        Lx equal lx
+variable        Ly equal ly
+variable        Lz equal lz
+
+fix             2 all ave/time 100 10 1000 c_myTemp v_V v_Lx v_Ly v_Lz file thermal_expansion_${T}K.txt
+
+# Run simulation
+run             1000000
+
+# Clear fixes
+unfix           1
+unfix           2
+clear
+
+# Proceed to next temperature
+next T
+jump SELF T_loop

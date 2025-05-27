@@ -1,0 +1,143 @@
+# -----------------------------------
+# Basic settings
+# -----------------------------------
+units            metal
+dimension        3
+newton           on
+boundary         p p p
+atom_style       atomic
+timestep         0.001
+neighbor         1.0 bin
+
+# -----------------------------------
+# Read structure and expand supercell
+# -----------------------------------
+read_data        lammps.data
+replicate        8 1 1
+
+# -----------------------------------
+# Atomic masses and DeepMD potential
+# -----------------------------------
+mass            1 6.941   # Li
+mass            2 35.45   # Cl
+mass            3 16.00   # O
+mass            4 79.904  # Br
+pair_style       deepmd ../AP-compress.pb
+pair_coeff       * *
+
+# -----------------------------------
+# Initial velocity
+# -----------------------------------
+velocity         all create 300 12345 mom yes rot yes dist gaussian
+
+# -----------------------------------
+# Energy minimization
+# -----------------------------------
+min_style        cg
+minimize         1.0e-8 1.0e-8 10000 10000
+
+# -----------------------------------
+# NPT relaxation
+# -----------------------------------
+fix              1 all npt temp 300 300 0.1 iso 0 0 1
+thermo           100
+thermo_style     custom step temp pe ke etotal press vol
+run              100000
+unfix            1
+reset_timestep   0
+
+# -----------------------------------
+# NVT relaxation
+# -----------------------------------
+fix              2 all nvt temp 300 300 0.1
+run              500000
+unfix            2
+reset_timestep   0
+
+# -----------------------------------
+# Change boundary conditions
+# -----------------------------------
+change_box       all boundary f p p
+
+# -----------------------------------
+# Box parameters and spatial binning
+# -----------------------------------
+variable         X1 equal xlo
+variable         X2 equal xhi
+variable         Len equal ${X2}-${X1}
+variable         Nlay equal 60
+variable         Dscale equal 1.0/${Nlay}
+variable         Dz equal ${Len}*${Dscale}
+
+# -----------------------------------
+# Hot and cold regions
+# -----------------------------------
+variable         HotL equal ${X1}+12.0
+variable         HotR equal ${X1}+24.0
+variable         ColdL equal ${X2}-24.0
+variable         ColdR equal ${X2}-12.0
+
+region           fixed_L block INF ${HotL} INF INF INF INF units box
+region           fixed_R block ${ColdR} INF INF INF INF INF units box
+region           Hot     block ${HotL} ${HotR} INF INF INF INF units box
+region           Cold    block ${ColdL} ${ColdR} INF INF INF INF units box
+
+group            fixed_L region fixed_L
+group            fixed_R region fixed_R
+group            Hot     region Hot
+group            Cold    region Cold
+group            mobile  subtract all fixed_L fixed_R
+
+# -----------------------------------
+# Fix atoms at the boundaries
+# -----------------------------------
+velocity         fixed_L set 0 0 0
+velocity         fixed_R set 0 0 0
+fix              fl fixed_L setforce 0 0 0
+fix              fr fixed_R setforce 0 0 0
+
+# -----------------------------------
+# Langevin thermostats and NVE dynamics
+# -----------------------------------
+fix              3 Hot langevin 400 400 0.1 14565 tally yes
+fix              4 Cold langevin 200 200 0.1 16576 tally yes
+fix              5 all nve
+
+# -----------------------------------
+# Heat flux output
+# -----------------------------------
+variable         Time equal step
+variable         EL equal f_3
+variable         ER equal f_4
+fix              E_out all print 10000 "${Time} ${EL} ${ER}" file heatflow.dat title "Time E_Hot E_Cold" screen no
+
+# -----------------------------------
+# Temperature profiling
+# -----------------------------------
+compute          ke1 all ke/atom
+variable         kb equal 8.617e-5
+variable         temp1 atom c_ke1/1.5/${kb}
+compute          chunk all chunk/atom bin/1d x lower ${Dscale} units reduced
+fix              aveT all ave/chunk 1000 10 10000 chunk v_temp1 file temp_profile.dat
+
+# -----------------------------------
+# Thermodynamic output
+# -----------------------------------
+thermo           10000
+thermo_style     custom step temp ke pe etotal press vol
+
+# -----------------------------------
+# Main simulation run (2 ns)
+# -----------------------------------
+run              2000000
+
+# -----------------------------------
+# Cleanup
+# -----------------------------------
+unfix            3
+unfix            4
+unfix            5
+unfix            aveT
+unfix            E_out
+unfix            fl
+unfix            fr
