@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import constants
@@ -34,7 +35,13 @@ kB = constants.Boltzmann  # J/K
 e_charge = constants.e     # C
 
 # ------------------------ Parameters ----------------------------
-T = 600  # Temperature in K
+# Conductivity is evaluated at the production temperature of this trajectory.
+# Room-temperature values in the manuscript are Arrhenius extrapolations, not this number.
+# Usage: python "plot_msd&fit.py" 1000
+if len(sys.argv) != 2:
+    raise SystemExit("Give the production temperature in K, for example: python plot_msd&fit.py 1000")
+T = float(sys.argv[1])
+TIMESTEP_FS = 1.0  # Manuscript timestep
 poscar_volume_A3, ion_num = read_poscar('POSCAR')  # Get supercell volume and Li count
 cell_volume_cm3 = poscar_volume_A3 * 1e-24  # Convert Å³ to cm³
 
@@ -46,7 +53,7 @@ print(f"Ionic concentration c_ion_cm3 = {c_ion_cm3:.3e} ions/cm³")
 data = np.loadtxt('msd_Li.out', comments='#')
 time_steps_raw = data[:, 0]
 time_step_zero = time_steps_raw[0]
-relative_time_fs = time_steps_raw - time_step_zero  # Set first step as t=0
+relative_time_fs = (time_steps_raw - time_step_zero) * TIMESTEP_FS
 relative_time_ps = relative_time_fs * 1e-3          # Convert to ps
 msd_A2 = data[:, 1]                                 # MSD in Å²
 
@@ -55,7 +62,7 @@ fit_start = int(data[0, 0])
 fit_end = int(data[-1, 0])
 
 mask = (data[:, 0] >= fit_start) & (data[:, 0] <= fit_end)
-fit_time_s = relative_time_fs[mask] * 1e-15  # Convert to seconds
+fit_time_s = relative_time_fs[mask] * 1e-15  # Whole production segment, fs to s
 fit_msd_m2 = msd_A2[mask] * 1e-20            # Convert to m²
 
 # ------------------------ Linear fit for diffusivity ----------------------------
@@ -68,7 +75,9 @@ D_m2_s = slope / 6  # Einstein relation: D = slope / 6
 D_cm2_s = D_m2_s * 1e4  # Convert to cm²/s
 
 # ------------------------ Nernst-Einstein conductivity ----------------------------
-sigma_S_cm = (D_cm2_s * e_charge**2 * c_ion_cm3) / (kB * T)  # in S/cm
+# sigma = n e^2 D / (kT), with n = N_Li / V and H_R = 1.
+H_R = 1.0
+sigma_S_cm = H_R * (D_cm2_s * e_charge**2 * c_ion_cm3) / (kB * T)  # S/cm at this T
 
 # ------------------------ Plot MSD and fit ----------------------------
 plt.rcParams['font.family'] = 'Times New Roman'
@@ -83,7 +92,7 @@ plt.title('Li MSD and Diffusion Fitting', fontsize=16)
 plt.legend(fontsize=14)
 
 # Annotate diffusivity and conductivity
-textstr = f'Diffusivity = {D_cm2_s:.3e} cm²/s\nConductivity = {sigma_S_cm:.3e} S/cm'
+textstr = f'D = {D_cm2_s:.3e} cm²/s\nσ({T:.0f} K) = {sigma_S_cm:.3e} S/cm'
 plt.text(0.05 * max(relative_time_ps), 0.15 * max(msd_A2), textstr,
          fontsize=13, bbox=dict(facecolor='white', alpha=0.7))
 
@@ -98,4 +107,4 @@ print(f"Number of Li atoms = {ion_num}")
 print(f"Ionic concentration c_ion_cm3 = {c_ion_cm3:.3e} ions/cm³")
 print(f"Fitting range: {fit_start} - {fit_end} steps")
 print(f"Diffusivity D = {D_cm2_s:.3e} cm²/s")
-print(f"Ionic conductivity σ = {sigma_S_cm:.3e} S/cm")
+print(f"Ionic conductivity at {T:.0f} K, σ = {sigma_S_cm:.3e} S/cm")

@@ -1,15 +1,17 @@
-# Deep Potential MLP Model for Anti-Perovskite Solid Electrolytes
+# Deep Potential model for antiperovskite solid electrolytes
 
-This repository provides the machine learning potential (MLP) and related training/analysis scripts for the study of anti-perovskite solid electrolytes (AP SEs) using the Deep Potential (DP) framework. 
-The developed model enables accurate and efficient molecular dynamics simulations for investigating both ionic conductivity and thermal properties.
+Training input and analysis scripts for Li₃OCl₁₋ₓBrₓ. The Deep Potential uses a `se_e2_a` descriptor with a 6.0 Å cutoff and is trained for 800,000 steps. LAMMPS type order is Li, Cl, O, Br.
 
 ## Model Overview
 
-- **System**: Anti-perovskite Li₃OCl₁₋ₓBrₓ  
-- **Framework**: Deep Potential Molecular Dynamics (DeePMD-kit)  
-- **Training data**: AIMD trajectories of defective/doped AP-SEs  
-- **Model format**: Compressed `.pb` file compatible with `pair_style deepmd` in LAMMPS  
-- **Application**: Nanosecond-scale MD simulations for ionic transport, thermal conductivity (NEMD), structure–property analysis  
+- **System**: antiperovskite Li₃OCl₁₋ₓBrₓ
+- **Framework**: DeePMD-kit and LAMMPS
+- **Model format**: compressed `.pb` file for `pair_style deepmd`
+- **Ion transport**: NVT, 1 fs timestep, 100 ps equilibration excluded from the MSD, 1 ns production. End-member benchmarks use 10 ns.
+- **Temperatures**: 600, 800, 1000, 1200, and 1400 K. Room-temperature diffusivity is an Arrhenius extrapolation.
+- **Conductivity**: Nernst–Einstein relation with \(n = N_{\mathrm{Li}}/V\) and \(H_R = 1\), evaluated at the production temperature.
+- **Thermal expansion**: NPT from 300 to 1000 K in 100 K steps.
+- **Lattice thermal conductivity**: 8× replication along the flow direction, 100 ps NPT and 500 ps NVT equilibration, then 2 ns NVE with Langevin regions at 400 K and 200 K. The reported value uses the final 1 ns and \(\kappa = J/|\mathrm{d}T/\mathrm{d}x|\).
 
 
 ## Requirements
@@ -38,7 +40,7 @@ pair_coeff   * *
 
 **Li⁺ Trajectories**: `plot_Li_migration_XY.py`
 
-**MSD fitting & conductivity**: `plot_msd&fit.py`
+**MSD fitting and conductivity** at the production temperature: `python "plot_msd&fit.py" 1000`
 
 **Thermal expansion**: `analyze_thermal_expansion.py`
 

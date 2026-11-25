@@ -43,8 +43,8 @@ def load_temperature(filename):
 # === Step 1.5: Plot temperature profile ===
 def plot_temperature(x, temps):
     plt.figure()
-    plt.plot(x, temps, 'o-', label='Temperature profile')
-    plt.xlabel('x position (m)')
+    plt.plot(x * 1e9, temps, 'o-', label='Temperature profile')
+    plt.xlabel('x position (nm)')
     plt.ylabel('Temperature (K)')
     plt.title('Temperature Profile from NEMD')
     plt.grid(True)
@@ -60,19 +60,23 @@ def compute_heat_flux(filename, area):
     EL = data[:, 1]
     ER = data[:, 2]
 
+    # Final 1 ns of the 2 ns production run.
     N = len(times) // 2
     slope_L, *_ = linregress(times[N:], EL[N:])
     slope_R, *_ = linregress(times[N:], ER[N:])
 
-    J = (slope_L - slope_R) / (2 * area)  # eV/fs/m²
-    J *= 1.60218e-19 / 1e-15              # Convert to W/m²
+    # Manuscript: J = |dE_hot/dt - dE_cold/dt| / (2A).
+    # The time column is the step number and the timestep is 1 fs.
+    J = abs(slope_L - slope_R) / (2 * area)  # eV/fs/m²
+    J *= 1.60218e-19 / 1e-15                 # Convert to W/m²
     return J
 
 # === Step 3: Fit linear temperature gradient and compute thermal conductivity ===
 def compute_k(x, T, J):
     fit = linregress(x[10:-10], T[10:-10])  # Fit only central region
     dT_dx = fit.slope
-    k = J / dT_dx  # W/m·K
+    # Manuscript: kappa = J / |dT/dx|, with the gradient in K/m.
+    k = J / abs(dT_dx)  # W/m·K
     return k, dT_dx
 
 # === Main program ===
@@ -86,7 +90,7 @@ if __name__ == "__main__":
     lx, ly, lz = get_box_dimensions(data_file)
     area = ly * lz
     length_x = lx
-    print(f"Box dimensions: Lx = {length_x:.2e} m, Area = {area:.2e} m²")
+    print(f"Box dimensions: Lx = {length_x:.2e} m ({length_x*1e9:.2f} nm), Area = {area:.2e} m²")
 
     # Step 1: Load temperature profile
     chunk_ids, temps = load_temperature(temp_file)

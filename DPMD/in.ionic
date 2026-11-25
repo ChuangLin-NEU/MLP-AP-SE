@@ -2,8 +2,12 @@
 # 0. Initialization
 # ===============================
 units           metal
+timestep        0.001
 boundary        p p p
 atom_style      atomic
+
+# Production temperature in K. The manuscript uses 600, 800, 1000, 1200, and 1400.
+variable        T equal 1000
 
 neighbor        1.0 bin
 neigh_modify    every 10 delay 0 check no
@@ -35,27 +39,26 @@ thermo_style    custom step temp press pe ke etotal
 restart         100000 restart.*.bin
 
 # ===============================
-# 4. Equilibration stage (NVT at 1000 K, 200,000 steps)
+# 4. Equilibration (NVT, 100 ps). This segment is not used for the MSD.
 # ===============================
 
-# Assign initial velocities at 1000 K with random seed
-velocity        all create 1000.0 12345 mom yes rot yes dist gaussian
+velocity        all create ${T} 12345 mom yes rot yes dist gaussian
 
-fix             equilibration all nvt temp 1000.0 1000.0 0.25
-run             200000
+fix             equilibration all nvt temp ${T} ${T} 0.25
+run             100000
 unfix           equilibration
 
 # ===============================
-# 5. Production stage (NVT at 1000 K, 1,000,000 steps)
+# 5. Production (NVT, 1 ns). End-member benchmarks in the manuscript use 10 ns.
 # ===============================
 
-fix             production all nvt temp 1000.0 1000.0 0.25
+fix             production all nvt temp ${T} ${T} 0.25
 
 # Define atom groups
 group           Li type 1
 group           O  type 3
 
-# Compute mean square displacement (MSD) for Li ions
+# Unwrapped Li MSD with the Li center-of-mass drift removed.
 compute         msd_Li Li msd com yes
 fix             msd_out Li ave/time 100 1 100 c_msd_Li[4] file msd_Li.out mode scalar
 

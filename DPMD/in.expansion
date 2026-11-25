@@ -2,6 +2,7 @@ variable T index 300 400 500 600 700 800 900 1000
 label T_loop
 
 units           metal
+timestep        0.001
 atom_style      atomic
 boundary        p p p
 

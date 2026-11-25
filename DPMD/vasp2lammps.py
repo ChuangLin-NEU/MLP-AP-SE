@@ -7,7 +7,9 @@ atoms = read('POSCAR', format='vasp')
 
 # === Step 2: Write to an intermediate LAMMPS data file ===
 # Export the structure to a temporary LAMMPS data file without guaranteed type-ID order
-write('lammps_unsorted.data', atoms, format='lammps-data', atom_style='atomic')
+# Keep the DeepMD type order even when one halogen is absent: 1 Li, 2 Cl, 3 O, 4 Br.
+write('lammps_unsorted.data', atoms, format='lammps-data', atom_style='atomic',
+      specorder=['Li', 'Cl', 'O', 'Br'])
 
 # === Step 3: Reload and assign correct atomic numbers by type-ID mapping ===
 # Manually define type-to-element mapping to ensure LAMMPS type-ID corresponds to correct atomic species
